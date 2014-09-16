@@ -40,7 +40,7 @@ cp /vagrant/nitrogen-admin.conf /etc/init/nitrogen-admin.conf
 #cat app/scripts/app.js | sed -e s%\/\/host\:%host\:% | sed -e s%\/\/http_port:%http_port:% | sed -e s%\/\/protocol:%protocol:% | sed -e s%force_https:\ true%force_https:\ false% > /tmp/app.js
 #cp /tmp/app.js app/scripts/app.js
 
-cat Gruntfile.js | sed -e 's/localhost/0.0.0.0/' > /tmp/Gruntfile.js
-cp /tmp/Gruntfile.js ./GruntFile.js
+cat Gruntfile.js | sed -e "s/localhost/0.0.0.0/" | sed -e "s/'open',//" > /tmp/Gruntfile.js
+cp /tmp/Gruntfile.js ./Gruntfile.js
 
 start nitrogen-admin
