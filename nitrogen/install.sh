@@ -15,7 +15,7 @@ sudo apt-get install -yyq nodejs
 sudo update-alternatives --install /usr/bin/node node /usr/bin/nodejs 10
 sudo apt-get install -yyq npm
 
-# Get Nitrogen - this is a repo of submodules to make life easier
+# Make a directory for nitrogen
 mkdir nitrogen
 cd nitrogen
 
