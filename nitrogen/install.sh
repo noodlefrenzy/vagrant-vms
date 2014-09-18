@@ -18,20 +18,22 @@ sudo apt-get install -yyq npm
 # Get Nitrogen - this is a repo of submodules to make life easier
 mkdir nitrogen
 cd nitrogen
-git clone https://github.com/nitrogenjs/service.git
-git clone https://github.com/nitrogenjs/admin.git
 
 # Start the service
+git clone https://github.com/nitrogenjs/service.git
 cd service
 sudo npm install
 cp /vagrant/nitrogen-service.conf /etc/init/nitrogen-service.conf
 start nitrogen-service
+cd ..
 
 # Start the admin app 
-cd ../admin
+git clone https://github.com/nitrogenjs/admin.git
+cd admin
 npm install -g yo grunt-cli bower
 npm install
 bower --allow-root install
 gem install compass
 cp /vagrant/nitrogen-admin.conf /etc/init/nitrogen-admin.conf
 start nitrogen-admin
+cd ..
