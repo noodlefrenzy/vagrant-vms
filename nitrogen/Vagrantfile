@@ -1,5 +1,6 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby 
+require 'etc'
 
 # Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
 VAGRANTFILE_API_VERSION = "2"
@@ -12,14 +13,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # Every Vagrant virtual environment requires a box to build off of.
   config.vm.box = "ubuntu/trusty64"
 
-  # Override if Parallels
-  config.vm.provider "parallels" do |v, override|
-    override.vm.box = "parallels/ubuntu-14.04"
-    override.vm.box_url = "https://vagrantcloud.com/parallels/ubuntu-14.04"
-    # Bug in parallels provider https://github.com/Parallels/vagrant-parallels/issues/124
-    override.vm.synced_folder "./", "/vagrant", id: "some_id"
-  end
-
   # Disable automatic box update checking. If you disable this, then
   # boxes will only be checked for updates when the user runs
   # `vagrant box outdated`. This is not recommended.
@@ -30,15 +23,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # accessing "localhost:8080" will access port 80 on the guest machine.
   config.vm.network "forwarded_port", guest: 3030, host: 3030
   config.vm.network "forwarded_port", guest: 9000, host: 9000
-
-  # Create a private network, which allows host-only access to the machine
-  # using a specific IP.
-  # config.vm.network "private_network", ip: "192.168.33.10"
-
-  # Create a public network, which generally matched to bridged network.
-  # Bridged networks make the machine appear as another physical device on
-  # your network.
-  # config.vm.network "public_network"
 
   # If true, then any SSH connections made will enable agent forwarding.
   # Default value: false
@@ -55,19 +39,39 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # Example for VirtualBox:
   #
   config.vm.provider "virtualbox" do |vb|
-    # Don't boot with headless mode
-    # vb.gui = true
-  
     # Use VBoxManage to customize the VM. For example to change memory:
     vb.customize ["modifyvm", :id, "--memory", "1024"]
+  end
+
+  # Override if Parallels
+  config.vm.provider "parallels" do |v, parallels|
+    parallels.vm.box = "parallels/ubuntu-14.04"
+    parallels.vm.box_url = "https://vagrantcloud.com/parallels/ubuntu-14.04"
+    # Bug in parallels provider https://github.com/Parallels/vagrant-parallels/issues/124
+    parallels.vm.synced_folder "./", "/vagrant", id: "some_id"
+  end
+
+  # Override if Azure, use deploy-azure.sh to retrieve and set required environment variables.
+  config.vm.provider "azure" do |v, azure|
+    azure.mgmt_certificate = ENV['AZURE_MANAGEMENT_CERT']
+        azure.mgmt_endpoint = 'https://management.core.windows.net'
+        azure.subscription_id = ENV['AZURE_SUBSCRIPTION_ID']
+        azure.vm_image = 'b39f27a8b8c64d52b05eac6a62ebad85__Ubuntu-14_04_1-LTS-amd64-server-20140909-en-us-30GB'
+        azure.vm_user = 'vagrant'
+        azure.vm_password = 'V8gr@nt' 
+        azure.vm_name = "nitrogen-#{Etc.getlogin}"
+        azure.deployment_name = azure.vm_name 
+        azure.vm_location = 'West US'
+        azure.ssh_private_key_file = ENV['NITROGEN_KEY']
+        azure.ssh_certificate_file = ENV['NITROGEN_CERT']
+        azure.ssh_port = '22'
+        azure.tcp_endpoints = '3030,9000'
   end
 
   # View the documentation for the provider you're using for more
   # information on available options.
   config.vm.provision :shell, :path => "install.sh"
   
-  #
   # Where to go to get started
-  #
   config.vm.post_up_message = "Open a browser to http://localhost:9000/ to get started."
 end

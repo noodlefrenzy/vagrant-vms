@@ -1,1 +1,4 @@
 .vagrant
+*.pem
+*.key
+*.cert
