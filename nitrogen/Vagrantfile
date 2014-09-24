@@ -1,24 +1,82 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby 
+require 'etc'
+
+$install = <<SCRIPT
+# Disable ipv6
+echo "net.ipv6.conf.all.disable_ipv6 = 1" >> /etc/sysctl.conf
+echo "net.ipv6.conf.default.disable_ipv6 = 1" >> /etc/sysctl.conf
+echo "net.ipv6.conf.lo.disable_ipv6 = 1" >> /etc/sysctl.conf
+sysctl -p 
+
+# Update/upgrade
+sudo apt-get update
+sudo apt-get upgrade
+
+# Get linux packages needed for Nitrogen
+sudo apt-get install -yyq git emacs build-essential mongodb-server redis-server ruby1.9.1-dev libffi-dev
+
+# Manage node installation on ubuntu
+sudo apt-get --purge remove node nodejs
+sudo apt-get install -yyq nodejs
+sudo update-alternatives --install /usr/bin/node node /usr/bin/nodejs 10
+sudo apt-get install -yyq npm
+
+# Make a directory for nitrogen
+mkdir nitrogen
+cd nitrogen
+
+# Start the service
+git clone https://github.com/nitrogenjs/service.git
+cd service
+sudo npm install
+cp /vagrant/nitrogen-service.conf /etc/init/nitrogen-service.conf
+start nitrogen-service
+cd ..
+
+# Wait for hostname to take effect
+# while [ "`curl -vs localhost:3030/api/v1/headwaiter 2>&1 | grep api_keys | awk '{ print $2 }' | awk -F: '{ print $2 }' | cut -c 3-` " = "localhost" ]; do
+#   restart nitrogen-service
+# done
+
+# Start the admin app 
+git clone https://github.com/nitrogenjs/admin.git
+cd admin
+npm install -g yo grunt-cli bower
+npm install
+bower --allow-root install
+gem install compass
+cp /vagrant/nitrogen-admin.conf /etc/init/nitrogen-admin.conf
+# This is because xdg-open is a pain in the neck
+cat Gruntfile.js | sed -e "s/localhost/0.0.0.0/" | sed -e "s/'open',//" > /tmp/Gruntfile.js
+cp /tmp/Gruntfile.js ./Gruntfile.js
+cat app/scripts/app.js | sed -e 's/localhost/0.0.0.0/' > /tmp/app.js
+cp /tmp/app.js app/scripts/app.js
+start nitrogen-admin
+cd ..
+
+# MQTT Gateway
+# git clone https://github.com/irjudson/mqtt.git
+# cd mqtt
+# sudo npm install
+# cp /vagrant/nitrogen-mqtt.conf /etc/init/nitrogen-mqtt.conf
+# start nitrogen-mqtt
+# cd ..
+
+SCRIPT
+
+$azure_install = <<SCRIPT
+hostname $1
+echo HOST_NAME=\\"$1\\" >> /etc/environment
+SCRIPT
 
 # Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
 VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
-  # All Vagrant configuration is done here. The most common configuration
-  # options are documented and commented below. For a complete reference,
-  # please see the online documentation at vagrantup.com.
 
   # Every Vagrant virtual environment requires a box to build off of.
   config.vm.box = "ubuntu/trusty64"
-
-  # Override if Parallels
-  config.vm.provider "parallels" do |v, override|
-    override.vm.box = "parallels/ubuntu-14.04"
-    override.vm.box_url = "https://vagrantcloud.com/parallels/ubuntu-14.04"
-    # Bug in parallels provider https://github.com/Parallels/vagrant-parallels/issues/124
-    override.vm.synced_folder "./", "/vagrant", id: "some_id"
-  end
 
   # Disable automatic box update checking. If you disable this, then
   # boxes will only be checked for updates when the user runs
@@ -31,19 +89,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.network "forwarded_port", guest: 3030, host: 3030
   config.vm.network "forwarded_port", guest: 9000, host: 9000
 
-  # Create a private network, which allows host-only access to the machine
-  # using a specific IP.
-  # config.vm.network "private_network", ip: "192.168.33.10"
-
-  # Create a public network, which generally matched to bridged network.
-  # Bridged networks make the machine appear as another physical device on
-  # your network.
-  # config.vm.network "public_network"
-
-  # If true, then any SSH connections made will enable agent forwarding.
-  # Default value: false
-  # config.ssh.forward_agent = true
-
   # Share an additional folder to the guest VM. The first argument is
   # the path on the host to the actual folder. The second argument is
   # the path on the guest to mount the folder. And the optional third
@@ -52,22 +97,49 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.
-  # Example for VirtualBox:
-  #
-  config.vm.provider "virtualbox" do |vb|
-    # Don't boot with headless mode
-    # vb.gui = true
   
+  # VirtualBox:
+  config.vm.provider :virtualbox do |virtualbox, override|
     # Use VBoxManage to customize the VM. For example to change memory:
-    vb.customize ["modifyvm", :id, "--memory", "1024"]
+    virtualbox.customize ["modifyvm", :id, "--memory", "1024"]
   end
 
-  # View the documentation for the provider you're using for more
-  # information on available options.
-  config.vm.provision :shell, :path => "install.sh"
-  
-  #
+  # Parallels:
+  config.vm.provider "parallels" do |parallels, override|
+    override.vm.box = "parallels/ubuntu-14.04"
+    override.vm.box_url = "https://vagrantcloud.com/parallels/ubuntu-14.04"
+    # Bug in parallels provider https://github.com/Parallels/vagrant-parallels/issues/124
+    override.vm.synced_folder "./", "/vagrant", id: "some_id"
+  end
+
   # Where to go to get started
-  #
   config.vm.post_up_message = "Open a browser to http://localhost:9000/ to get started."
+  
+  # Azure:
+  config.vm.provider :azure do |azure, override|
+    override.vm.box = "azure"
+    override.ssh.username = 'vagrant'
+    override.ssh.password = 'V8gr@nt'
+    azure.mgmt_certificate = ENV['AZURE_MANAGEMENT_CERT']
+    azure.mgmt_endpoint = 'https://management.core.windows.net'
+    azure.subscription_id = ENV['AZURE_SUBSCRIPTION_ID']
+    azure.vm_image = 'b39f27a8b8c64d52b05eac6a62ebad85__Ubuntu-14_04_1-LTS-amd64-server-20140909-en-us-30GB'
+    # 'ExtraSmall, Small, Medium, Large, ExtraLarge, A6, A7'
+    azure.vm_size = "Medium"
+    azure.vm_user = config.ssh.username
+    azure.vm_password = config.ssh.password 
+    azure.vm_name = ENV['NITROGEN_VM_NAME']
+    azure.cloud_service_name = azure.vm_name
+    azure.deployment_name = "deployment-0"
+    azure.vm_location = 'West US'
+    azure.ssh_private_key_file = ENV['NITROGEN_KEY']
+    azure.ssh_certificate_file = ENV['NITROGEN_CERT']
+    azure.ssh_port = '22'
+    azure.tcp_endpoints = '3030,9000'
+    override.vm.post_up_message = "Open a browser to http://#{azure.vm_name}.cloudapp.net:9000/ to get started."
+    override.vm.synced_folder ".", "/vagrant", type: "rsync", rsync__exclude: [".vagrant/", ".git/", ".gitignore", "*.pem", "*.key", "*.cert"]
+    override.vm.provision :shell, :inline => $azure_install, :args => "#{azure.vm_name}.cloudapp.net"
+  end
+  # Provision (install software) on the machine
+  config.vm.provision :shell, :inline => $install
 end
